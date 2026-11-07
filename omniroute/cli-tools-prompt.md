@@ -5,6 +5,10 @@
 - `difft` syntax-aware diffs, `shellcheck` before running non-trivial shell scripts.
 - `hyperfine -N` for timing claims, `tokei` for codebase size/language overview, `ctags` for symbol locations.
 - `gh` for GitHub data (`--json` + `--jq`), not scraping github.com.
-- Prefix with `rtk` to shrink output: `rtk git`, `rtk gh`, `rtk rg`, `rtk ast-grep`, `rtk test <cmd>` (failures only),
-  `rtk err <cmd>` (errors only), `rtk log`. Use the raw command when you need full exact output (diffs you'll edit from, exact lines).
-- `rtk bulk-read --question "..." <paths>` to learn what docs say; read raw only to quote/edit lines. Never pass secrets (.env, keys).
+
+# Blocked by a hook (use the alternative the first time)
+- Edit files with the Edit/Write tools, never `sed -i`, `perl -pi`, `> file`, or `tee file`. Writing under /tmp is fine.
+- No `grep -r` or `find` without `-maxdepth`: use `rg` / `fd`. Single-file `grep` and `cmd | grep` are fine.
+- No unbounded listings: not `ls -R` or bare `tree`; use `fd -d 2`, `tree -L 2`, or `tokei`. Bound `git log` (`--oneline -n 20`).
+- No inline Python for JSON: use `jq`/`yq`. For other scripts, Write a file and run `python3 <file>`.
+- No `curl` to GitHub: use `gh api`.

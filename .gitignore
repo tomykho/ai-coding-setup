@@ -1,3 +1,8 @@
 *.tmp
 *.bak-*
 .env
+.claude/
+# raw test output stays local; tables are published as .md
+omniroute/test-results*.json
+omniroute/bench/*.json
+omniroute/bench/.dashboard-backup.json

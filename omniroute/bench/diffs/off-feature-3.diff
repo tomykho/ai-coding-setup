@@ -1,0 +1,200 @@
+diff --git a/inventory/__main__.py b/inventory/__main__.py
+new file mode 100644
+index 0000000..b7c9f5f
+--- /dev/null
++++ b/inventory/__main__.py
+@@ -0,0 +1,25 @@
++import argparse
++import sys
++
++from inventory.report import report
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(prog="python3 -m inventory")
++    sub = parser.add_subparsers(dest="command", required=True)
++
++    rep = sub.add_parser("report", help="print stock items as CSV")
++    rep.add_argument("--category", help="only items in this category")
++    rep.add_argument("--warehouse", help="only items in this warehouse")
++    rep.add_argument("--min-qty", type=int, help="only items with qty >= N")
++    rep.add_argument("--out", metavar="FILE", help="write CSV to FILE instead of stdout")
++
++    args = parser.parse_args(argv)
++    if args.command == "report":
++        report(category=args.category, warehouse=args.warehouse,
++               min_qty=args.min_qty, out=args.out)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/inventory/report.py b/inventory/report.py
+new file mode 100644
+index 0000000..9424df8
+--- /dev/null
++++ b/inventory/report.py
+@@ -0,0 +1,47 @@
++import csv
++import sys
++
++from inventory.core import load
++
++FIELDS = ["sku", "name", "category", "qty", "price_cents", "value_cents"]
++
++
++def build_rows(items, category=None, warehouse=None, min_qty=None):
++    """Filter items (AND-combined), add value_cents, sort by value desc then sku asc."""
++    rows = []
++    for i in items:
++        if category is not None and i.category != category:
++            continue
++        if warehouse is not None and i.warehouse != warehouse:
++            continue
++        if min_qty is not None and i.qty < min_qty:
++            continue
++        rows.append({
++            "sku": i.sku,
++            "name": i.name,
++            "category": i.category,
++            "qty": i.qty,
++            "price_cents": i.price_cents,
++            "value_cents": i.qty * i.price_cents,
++        })
++    rows.sort(key=lambda r: (-r["value_cents"], r["sku"]))
++    return rows
++
++
++def write_csv(rows, stream):
++    writer = csv.DictWriter(stream, fieldnames=FIELDS, lineterminator="\n")
++    writer.writeheader()
++    writer.writerows(rows)
++
++
++def report(category=None, warehouse=None, min_qty=None, out=None, items=None):
++    """Write the report to `out` (a file path) or stdout when out is None."""
++    if items is None:
++        items = load()
++    rows = build_rows(items, category, warehouse, min_qty)
++    if out is None:
++        write_csv(rows, sys.stdout)
++    else:
++        with open(out, "w", newline="") as f:
++            write_csv(rows, f)
++    return rows
+diff --git a/tests/test_report.py b/tests/test_report.py
+new file mode 100644
+index 0000000..59c59cb
+--- /dev/null
++++ b/tests/test_report.py
+@@ -0,0 +1,110 @@
++import csv
++import io
++import os
++import subprocess
++import sys
++import tempfile
++import unittest
++from contextlib import redirect_stdout
++
++from inventory.core import Item, load
++from inventory.__main__ import main
++from inventory.report import FIELDS, build_rows, report, write_csv
++
++ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++
++
++def items():
++    return [
++        Item("B", "b", "tools", 2, 100, "north"),   # value 200
++        Item("A", "a", "tools", 4, 50, "west"),     # value 200 (tie, sku A first)
++        Item("C", "c", "garden", 1, 1000, "north"), # value 1000
++        Item("D", "d", "garden", 0, 999, "west"),   # value 0
++    ]
++
++
++class BuildRowsTests(unittest.TestCase):
++    def test_value_and_fields(self):
++        rows = build_rows(items())
++        self.assertEqual(set(rows[0]), set(FIELDS))
++        c = next(r for r in rows if r["sku"] == "C")
++        self.assertEqual(c["value_cents"], 1000)
++
++    def test_sort_value_desc_then_sku_asc(self):
++        self.assertEqual([r["sku"] for r in build_rows(items())], ["C", "A", "B", "D"])
++
++    def test_category_filter(self):
++        self.assertEqual([r["sku"] for r in build_rows(items(), category="garden")], ["C", "D"])
++
++    def test_warehouse_filter(self):
++        self.assertEqual([r["sku"] for r in build_rows(items(), warehouse="west")], ["A", "D"])
++
++    def test_min_qty_inclusive(self):
++        self.assertEqual([r["sku"] for r in build_rows(items(), min_qty=2)], ["A", "B"])
++
++    def test_filters_combine_with_and(self):
++        rows = build_rows(items(), category="tools", warehouse="north", min_qty=2)
++        self.assertEqual([r["sku"] for r in rows], ["B"])
++
++    def test_no_match_gives_empty(self):
++        self.assertEqual(build_rows(items(), category="nope"), [])
++
++
++class WriteTests(unittest.TestCase):
++    def test_csv_header_and_rows(self):
++        buf = io.StringIO()
++        write_csv(build_rows(items(), category="garden"), buf)
++        lines = buf.getvalue().splitlines()
++        self.assertEqual(lines[0], "sku,name,category,qty,price_cents,value_cents")
++        self.assertEqual(lines[1], "C,c,garden,1,1000,1000")
++        self.assertEqual(len(lines), 3)
++
++    def test_report_to_file(self):
++        with tempfile.TemporaryDirectory() as d:
++            path = os.path.join(d, "out.csv")
++            report(category="tools", out=path, items=items())
++            with open(path, newline="") as f:
++                rows = list(csv.DictReader(f))
++            self.assertEqual([r["sku"] for r in rows], ["A", "B"])
++
++    def test_report_to_stdout(self):
++        buf = io.StringIO()
++        with redirect_stdout(buf):
++            report(min_qty=1, items=items())
++        rows = list(csv.DictReader(io.StringIO(buf.getvalue())))
++        self.assertEqual([r["sku"] for r in rows], ["C", "A", "B"])
++
++
++class CliTests(unittest.TestCase):
++    def test_cli_stdout_default_data(self):
++        buf = io.StringIO()
++        with redirect_stdout(buf):
++            self.assertEqual(main(["report", "--warehouse", "north"]), 0)
++        rows = list(csv.DictReader(io.StringIO(buf.getvalue())))
++        self.assertTrue(rows)
++        self.assertTrue(all(r["value_cents"] == str(int(r["qty"]) * int(r["price_cents"]))
++                            for r in rows))
++        values = [int(r["value_cents"]) for r in rows]
++        self.assertEqual(values, sorted(values, reverse=True))
++        expected = sum(1 for i in load() if i.warehouse == "north")
++        self.assertLessEqual(len(rows), expected)
++
++    def test_cli_out_file(self):
++        with tempfile.TemporaryDirectory() as d:
++            path = os.path.join(d, "r.csv")
++            self.assertEqual(main(["report", "--category", "garden", "--out", path]), 0)
++            with open(path, newline="") as f:
++                rows = list(csv.DictReader(f))
++            self.assertTrue(all(r["category"] == "garden" for r in rows))
++            self.assertEqual(list(rows[0]), FIELDS)
++
++    def test_module_entry_point(self):
++        proc = subprocess.run(
++            [sys.executable, "-m", "inventory", "report", "--min-qty", "1000000"],
++            cwd=ROOT, capture_output=True, text=True)
++        self.assertEqual(proc.returncode, 0, proc.stderr)
++        self.assertEqual(proc.stdout.strip(), ",".join(FIELDS))
++
++
++if __name__ == "__main__":
++    unittest.main()

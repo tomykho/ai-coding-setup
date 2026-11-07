@@ -1,0 +1,19 @@
+diff --git a/inventory/core.py b/inventory/core.py
+index e14fade..0088b84 100644
+--- a/inventory/core.py
++++ b/inventory/core.py
+@@ -26,7 +26,7 @@ def load(path=DATA):
+ 
+ def total_value(items):
+     # value of stock in cents
+-    return sum(i.qty + i.price_cents for i in items)
++    return sum(i.qty * i.price_cents for i in items)
+ 
+ 
+ def by_category(items):
+@@ -37,4 +37,4 @@ def by_category(items):
+ 
+ 
+ def low_stock(items, threshold=5):
+-    return [i for i in items if i.qty < threshold]
++    return [i for i in items if i.qty <= threshold]

@@ -1,0 +1,21 @@
+[
+  {
+    "name": "OmniRoute",
+    "vendor": "customendpoint",
+    "apiType": "chat-completions",
+    "models": [
+      {
+        "id": "openrouter/deepseek-v4.1-flash-1017",
+        "name": "DeepSeek V4.1 Flash 1017",
+        "url": "http://127.0.0.1:20128/v1/chat/completions",
+        "toolCalling": true,
+        "vision": false,
+        "maxInputTokens": 180000,
+        "maxOutputTokens": 20000,
+        "requestHeaders": {
+          "Authorization": "Bearer ${OMNIROUTE_API_KEY}"
+        }
+      }
+    ]
+  }
+]

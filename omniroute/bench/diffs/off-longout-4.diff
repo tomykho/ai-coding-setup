@@ -1,0 +1,10 @@
+diff --git a/answer.txt b/answer.txt
+new file mode 100644
+index 0000000..7affee7
+--- /dev/null
++++ b/answer.txt
+@@ -0,0 +1,4 @@
++35:7
++50:23
++65:52
++80:25

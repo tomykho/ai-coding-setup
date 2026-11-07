@@ -8,7 +8,8 @@
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
     "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
     "USE_BUILTIN_RIPGREP": "0",
-    "BASH_MAX_OUTPUT_LENGTH": "15000"
+    "BASH_MAX_OUTPUT_LENGTH": "15000",
+    "ENABLE_PROMPT_CACHING_1H": "1"
   },
   "permissions": {
     "deny": ["ScheduleWakeup", "Workflow"],
@@ -21,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "__BUN__ __HOME__/.claude/hooks/cli-tools-gate.ts",
+            "command": "python3 __HOME__/.claude/hooks/cli-tools-gate.py",
             "timeout": 10
           }
         ]

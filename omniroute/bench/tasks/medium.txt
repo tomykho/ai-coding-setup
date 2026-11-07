@@ -1,0 +1,5 @@
+In this repo:
+1. The unit tests fail (`python3 -m unittest`). Fix the bugs in inventory/core.py; do not modify tests.
+2. Add a function `warehouse_report(items)` to inventory/core.py returning a dict mapping each warehouse name to {"count": int, "value_cents": int, "low_stock_skus": sorted list of skus with qty <= 5}. value_cents is sum of qty*price_cents.
+3. Create report.txt in the repo root listing the top 5 categories by total stock value (qty*price_cents) from data/items.csv, one per line as `category,value_cents`, highest first.
+Look at the data file before writing code.

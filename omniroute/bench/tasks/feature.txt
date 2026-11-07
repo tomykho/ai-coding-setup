@@ -1,0 +1,9 @@
+Add a command-line report to this inventory package.
+
+`python3 -m inventory report [--category CAT] [--warehouse W] [--min-qty N] [--out FILE]`
+
+- Prints matching items from data/items.csv as CSV with header `sku,name,category,qty,price_cents,value_cents`, where value_cents = qty * price_cents.
+- Filters are optional and combine with AND; --min-qty keeps items with qty >= N.
+- Rows are sorted by value_cents descending, ties by sku ascending.
+- Writes to FILE if --out is given, otherwise stdout.
+- Add unit tests for the new behaviour. Existing tests must keep passing.

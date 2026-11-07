@@ -1,0 +1,164 @@
+diff --git a/inventory/__main__.py b/inventory/__main__.py
+new file mode 100644
+index 0000000..d34ad1c
+--- /dev/null
++++ b/inventory/__main__.py
+@@ -0,0 +1,5 @@
++import sys
++
++from inventory.report import main
++
++sys.exit(main())
+diff --git a/inventory/report.py b/inventory/report.py
+new file mode 100644
+index 0000000..bb07475
+--- /dev/null
++++ b/inventory/report.py
+@@ -0,0 +1,56 @@
++import csv
++import sys
++
++from inventory.core import load
++
++FIELDS = ["sku", "name", "category", "qty", "price_cents", "value_cents"]
++
++
++def report_rows(items, category=None, warehouse=None, min_qty=None):
++    """Return filtered items as dicts with value_cents, sorted by value desc, sku asc."""
++    rows = []
++    for i in items:
++        if category is not None and i.category != category:
++            continue
++        if warehouse is not None and i.warehouse != warehouse:
++            continue
++        if min_qty is not None and i.qty < min_qty:
++            continue
++        rows.append({
++            "sku": i.sku,
++            "name": i.name,
++            "category": i.category,
++            "qty": i.qty,
++            "price_cents": i.price_cents,
++            "value_cents": i.qty * i.price_cents,
++        })
++    rows.sort(key=lambda r: (-r["value_cents"], r["sku"]))
++    return rows
++
++
++def write_report(rows, fh):
++    writer = csv.DictWriter(fh, fieldnames=FIELDS, lineterminator="\n")
++    writer.writeheader()
++    writer.writerows(rows)
++
++
++def main(argv=None):
++    import argparse
++
++    parser = argparse.ArgumentParser(prog="python3 -m inventory")
++    sub = parser.add_subparsers(dest="command", required=True)
++    rep = sub.add_parser("report", help="print stock value report as CSV")
++    rep.add_argument("--category")
++    rep.add_argument("--warehouse")
++    rep.add_argument("--min-qty", type=int)
++    rep.add_argument("--out")
++    args = parser.parse_args(argv)
++
++    rows = report_rows(load(), category=args.category,
++                       warehouse=args.warehouse, min_qty=args.min_qty)
++    if args.out:
++        with open(args.out, "w", newline="") as f:
++            write_report(rows, f)
++    else:
++        write_report(rows, sys.stdout)
++    return 0
+diff --git a/tests/test_report.py b/tests/test_report.py
+new file mode 100644
+index 0000000..f9932f0
+--- /dev/null
++++ b/tests/test_report.py
+@@ -0,0 +1,85 @@
++import io
++import os
++import subprocess
++import sys
++import tempfile
++import unittest
++
++from inventory.core import Item
++from inventory.report import report_rows, write_report, main, FIELDS
++
++ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++
++
++def make(sku, qty, price, category="c", warehouse="n"):
++    return Item(sku, sku, category, qty, price, warehouse)
++
++
++class ReportRowsTests(unittest.TestCase):
++    def test_value_cents_computed(self):
++        rows = report_rows([make("a", 3, 100)])
++        self.assertEqual(rows[0]["value_cents"], 300)
++
++    def test_sorted_by_value_desc_then_sku_asc(self):
++        items = [make("b", 1, 100), make("a", 1, 100), make("c", 2, 100)]
++        self.assertEqual([r["sku"] for r in report_rows(items)], ["c", "a", "b"])
++
++    def test_category_filter(self):
++        items = [make("a", 1, 1, category="x"), make("b", 1, 1, category="y")]
++        self.assertEqual([r["sku"] for r in report_rows(items, category="y")], ["b"])
++
++    def test_warehouse_filter(self):
++        items = [make("a", 1, 1, warehouse="n"), make("b", 1, 1, warehouse="s")]
++        self.assertEqual([r["sku"] for r in report_rows(items, warehouse="s")], ["b"])
++
++    def test_min_qty_inclusive(self):
++        items = [make("a", 4, 1), make("b", 5, 1), make("c", 6, 1)]
++        self.assertEqual({r["sku"] for r in report_rows(items, min_qty=5)}, {"b", "c"})
++
++    def test_filters_combine_with_and(self):
++        items = [make("a", 10, 1, category="x", warehouse="n"),
++                 make("b", 10, 1, category="x", warehouse="s"),
++                 make("c", 1, 1, category="x", warehouse="n")]
++        rows = report_rows(items, category="x", warehouse="n", min_qty=5)
++        self.assertEqual([r["sku"] for r in rows], ["a"])
++
++    def test_row_keys_exclude_warehouse(self):
++        self.assertEqual(set(report_rows([make("a", 1, 1)])[0]), set(FIELDS))
++
++
++class WriteReportTests(unittest.TestCase):
++    def test_header_and_rows(self):
++        buf = io.StringIO()
++        write_report(report_rows([make("a", 2, 150, category="tools")]), buf)
++        self.assertEqual(buf.getvalue(),
++                         "sku,name,category,qty,price_cents,value_cents\n"
++                         "a,a,tools,2,150,300\n")
++
++    def test_empty_rows_writes_header_only(self):
++        buf = io.StringIO()
++        write_report([], buf)
++        self.assertEqual(buf.getvalue(), "sku,name,category,qty,price_cents,value_cents\n")
++
++
++class MainTests(unittest.TestCase):
++    def test_stdout_default(self):
++        proc = subprocess.run([sys.executable, "-m", "inventory", "report", "--min-qty", "1000"],
++                              cwd=ROOT, capture_output=True, text=True)
++        self.assertEqual(proc.returncode, 0, proc.stderr)
++        self.assertEqual(proc.stdout, "sku,name,category,qty,price_cents,value_cents\n")
++
++    def test_out_file(self):
++        with tempfile.TemporaryDirectory() as d:
++            path = os.path.join(d, "out.csv")
++            self.assertEqual(main(["report", "--category", "garden", "--out", path]), 0)
++            with open(path) as f:
++                lines = f.read().splitlines()
++            self.assertEqual(lines[0], "sku,name,category,qty,price_cents,value_cents")
++            self.assertGreater(len(lines), 1)
++            self.assertTrue(all(l.split(",")[2] == "garden" for l in lines[1:]))
++            values = [int(l.split(",")[5]) for l in lines[1:]]
++            self.assertEqual(values, sorted(values, reverse=True))
++
++
++if __name__ == "__main__":
++    unittest.main()

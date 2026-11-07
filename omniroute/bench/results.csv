@@ -1,0 +1,54 @@
+config,model,variant,task,run,pass,valid,prompt_tokens,cache_hit,weighted_cost,compressed,turns,added,removed,defs_added,tests_added,session
+baseline (off),claude-haiku-5-5,off,small,1,true,true,86194,0.888,19673,0,7,2,2,0,0,bench-off-small-1-1794073130104
+baseline (off),claude-haiku-5-5,off,small,2,true,true,86132,0.889,19615,0,7,2,2,0,0,bench-off-small-2-1794073139563
+baseline (off),claude-haiku-5-5,off,small,3,true,true,86268,0.888,19715,0,7,2,2,0,0,bench-off-small-3-1794073149351
+baseline (off),claude-haiku-5-5,off,feature,1,true,true,94319,0.86,24597,0,9,182,0,22,13,bench-off-feature-1-1794073160080
+baseline (off),claude-haiku-5-5,off,feature,2,true,true,95586,0.84,27197,0,8,184,0,24,14,bench-off-feature-2-1794073182447
+baseline (off),claude-haiku-5-5,off,feature,3,true,true,71450,0.832,20957,0,7,182,0,21,13,bench-off-feature-3-1794073210647
+baseline (off),claude-haiku-5-5,off,longout,1,true,true,55735,0.804,18108,0,3,4,0,0,0,bench-off-longout-1-1794073846021
+baseline (off),claude-haiku-5-5,off,longout,2,true,true,55711,0.805,18090,0,3,4,0,0,0,bench-off-longout-2-1794073850890
+baseline (off),claude-haiku-5-5,off,longout,3,true,true,56171,0.802,18413,0,3,4,0,0,0,bench-off-longout-3-1794073856229
+baseline (off),claude-haiku-5-5,off,longout,4,true,true,55750,0.804,18129,0,3,4,0,0,0,bench-off-longout-4-1794073862336
+baseline (off),claude-haiku-5-5,off,longout,5,true,true,55735,0.804,18116,0,3,4,0,0,0,bench-off-longout-5-1794073867207
+baseline (off),claude-haiku-5-5,off,longout,1,true,true,55702,0.805,18078,0,3,4,0,0,0,bench-off-longout-1-1794074014639
+baseline (off),claude-haiku-5-5,off,longout,2,true,true,55721,0.805,18098,0,3,4,0,0,0,bench-off-longout-2-1794074019868
+baseline (off),claude-haiku-5-5,off,longout,1,true,true,56114,0.802,18366,0,3,4,0,0,0,bench-off-longout-1-1794074579093
+baseline (off),claude-haiku-5-5,off,longout,2,true,true,56143,0.802,18395,0,3,4,0,0,0,bench-off-longout-2-1794074584423
+baseline (off),claude-haiku-5-5,off,longout,3,true,true,56117,0.802,18358,0,3,4,0,0,0,bench-off-longout-3-1794074589837
+rtk:minimal,claude-haiku-5-5,off,small,1,true,true,86166,0.889,19630,0,7,2,2,0,0,bench-off-small-1-1794070890261
+rtk:minimal,claude-haiku-5-5,allow-lossy,small,1,true,true,86109,0.889,19640,25,7,2,2,0,0,bench-allow-lossy-small-1-1794070899621
+rtk:minimal,claude-haiku-5-5,allow-lossy,small,2,true,true,86201,0.888,19677,25,7,2,2,0,0,bench-allow-lossy-small-2-1794070909162
+rtk:minimal,claude-haiku-5-5,off,small,2,true,true,86193,0.888,19689,0,7,2,2,0,0,bench-off-small-2-1794070919129
+rtk:minimal,claude-haiku-5-5,off,small,3,true,true,86145,0.889,19639,0,7,2,2,0,0,bench-off-small-3-1794070929087
+rtk:minimal,claude-haiku-5-5,allow-lossy,small,3,true,true,86126,0.889,19593,30,7,2,2,0,0,bench-allow-lossy-small-3-1794070938617
+rtk:minimal,claude-haiku-5-5,off,feature,1,true,true,71666,0.829,21228,0,7,178,0,21,11,bench-off-feature-1-1794070948592
+rtk:minimal,claude-haiku-5-5,allow-lossy,feature,1,true,true,93688,0.862,24261,310,9,178,0,23,14,bench-allow-lossy-feature-1-1794070968225
+rtk:minimal,claude-haiku-5-5,allow-lossy,feature,2,true,true,93712,0.865,23942,40,7,193,0,25,15,bench-allow-lossy-feature-2-1794070990817
+rtk:minimal,claude-haiku-5-5,off,feature,2,true,true,94383,0.857,25001,0,8,176,0,20,11,bench-off-feature-2-1794071013551
+rtk:minimal,claude-haiku-5-5,off,feature,3,true,true,114432,0.89,25966,0,8,183,0,20,12,bench-off-feature-3-1794071034874
+rtk:minimal,claude-haiku-5-5,allow-lossy,feature,3,true,true,93149,0.86,24264,35,8,182,0,20,11,bench-allow-lossy-feature-3-1794071057740
+"caveman:full, rtk:standard",claude-haiku-5-5,allow-lossy,small,1,true,true,86074,0.889,19616,47,7,2,2,0,0,bench-allow-lossy-small-1-1794073235988
+"caveman:full, rtk:standard",claude-haiku-5-5,allow-lossy,small,2,true,true,85970,0.889,19534,48,7,2,2,0,0,bench-allow-lossy-small-2-1794073245522
+"caveman:full, rtk:standard",claude-haiku-5-5,allow-lossy,small,3,true,true,86101,0.889,19599,47,7,2,2,0,0,bench-allow-lossy-small-3-1794073254802
+"caveman:full, rtk:standard",claude-haiku-5-5,allow-lossy,feature,1,true,true,119561,0.872,29492,73,9,156,0,19,12,bench-allow-lossy-feature-1-1794073264658
+"caveman:full, rtk:standard",claude-haiku-5-5,allow-lossy,feature,2,true,true,71503,0.832,20958,43,7,172,0,20,12,bench-allow-lossy-feature-2-1794073294312
+"caveman:full, rtk:standard",claude-haiku-5-5,allow-lossy,feature,3,true,true,71473,0.832,20966,43,7,177,0,22,12,bench-allow-lossy-feature-3-1794073315368
+"caveman:full, rtk:aggressive",claude-haiku-5-5,allow-lossy,small,1,true,true,86460,0.885,20047,649,7,2,2,0,0,bench-allow-lossy-small-1-1794073339312
+"caveman:full, rtk:aggressive",claude-haiku-5-5,allow-lossy,small,2,true,true,86120,0.886,19919,807,8,2,2,0,0,bench-allow-lossy-small-2-1794073350276
+"caveman:full, rtk:aggressive",claude-haiku-5-5,allow-lossy,small,3,true,true,86147,0.886,19955,807,8,2,2,0,0,bench-allow-lossy-small-3-1794073362367
+"caveman:full, rtk:aggressive",claude-haiku-5-5,allow-lossy,feature,1,true,true,93486,0.857,24672,59,9,169,0,20,12,bench-allow-lossy-feature-1-1794073373360
+"caveman:full, rtk:aggressive",claude-haiku-5-5,allow-lossy,feature,2,true,true,71456,0.832,20918,45,7,175,0,22,13,bench-allow-lossy-feature-2-1794073394427
+"caveman:full, rtk:aggressive",claude-haiku-5-5,allow-lossy,feature,3,true,true,91027,0.863,23404,73,8,146,0,18,11,bench-allow-lossy-feature-3-1794073411996
+"caveman:full, rtk:minimal",claude-haiku-5-5,allow-lossy,longout,1,true,true,56103,0.802,18366,30,3,4,0,0,0,bench-allow-lossy-longout-1-1794074601059
+"caveman:full, rtk:minimal",claude-haiku-5-5,allow-lossy,longout,2,true,true,56077,0.803,18333,30,3,4,0,0,0,bench-allow-lossy-longout-2-1794074606290
+"caveman:full, rtk:minimal",claude-haiku-5-5,allow-lossy,longout,3,true,true,56099,0.802,18355,29,3,4,0,0,0,bench-allow-lossy-longout-3-1794074611146
+"caveman:full, rtk:standard",claude-haiku-5-5,allow-lossy,longout,1,true,true,56083,0.803,18336,28,3,4,0,0,0,bench-allow-lossy-longout-1-1794074622467
+"caveman:full, rtk:standard",claude-haiku-5-5,allow-lossy,longout,2,true,true,56181,0.802,18416,28,3,4,0,0,0,bench-allow-lossy-longout-2-1794074627639
+"caveman:full, rtk:standard",claude-haiku-5-5,allow-lossy,longout,3,true,true,56092,0.802,18352,28,3,4,0,0,0,bench-allow-lossy-longout-3-1794074633000
+"caveman:full, rtk:aggressive",claude-haiku-5-5,allow-lossy,longout,1,false,true,51474,0.829,15285,2327,3,4,0,0,0,bench-allow-lossy-longout-1-1794074644248
+"caveman:full, rtk:aggressive",claude-haiku-5-5,allow-lossy,longout,2,false,true,51351,0.83,15164,2328,3,4,0,0,0,bench-allow-lossy-longout-2-1794074650550
+"caveman:full, rtk:aggressive",claude-haiku-5-5,allow-lossy,longout,3,false,true,51293,0.829,15188,2327,3,4,0,0,0,bench-allow-lossy-longout-3-1794074657272
+rtk:standard,claude-haiku-5-5,allow-lossy,longout,1,false,true,50411,0.835,14579,2658,3,4,0,0,0,bench-allow-lossy-longout-1-1794074031723
+rtk:standard,claude-haiku-5-5,allow-lossy,longout,2,false,true,50330,0.837,14475,2658,3,4,0,0,0,bench-allow-lossy-longout-2-1794074037466
+caveman:full,claude-haiku-5-5,allow-lossy,longout,1,true,true,55736,0.804,18122,3,3,4,0,0,0,bench-allow-lossy-longout-1-1794074049569
+caveman:full,claude-haiku-5-5,allow-lossy,longout,2,true,true,55684,0.805,18058,3,3,4,0,0,0,bench-allow-lossy-longout-2-1794074054894
