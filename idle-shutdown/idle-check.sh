@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # idle-check.sh — power this machine off when no AI client is using it.
 #
-#   activity = newest of: OmniRoute request log, pi transcript write, boot time
-#   session  = a pi process, or a live connection on the SSH port
-#   blockers = a pi tool still running, dpkg/apt holding the lock, hold file
+#   activity = newest of: OmniRoute request log, pig transcript write, boot time
+#   session  = a pig process, or a live connection on the SSH port
+#   blockers = a pig tool still running, dpkg/apt holding the lock, hold file
 #
 # Power off when activity is older than OPEN_MIN (session) or IDLE_MIN (no session),
 # and no blocker is set. A session only buys time; it never resets the clock.
@@ -48,7 +48,7 @@ IDLE_MIN=${IDLE_MIN:-60}      # minutes of no activity, no session open
 OPEN_MIN=${OPEN_MIN:-120}     # minutes of no activity, session still open
 GRACE_SEC=${GRACE_SEC:-60}    # warning before poweroff, then one re-check
 SSH_PORT=${SSH_PORT-22}      # empty = ignore SSH sessions
-PI_PROC_NAME=${PI_PROC_NAME:-pi}
+PI_PROC_NAME=${PI_PROC_NAME:-pig}
 PI_USER=${PI_USER:-}
 PI_HOME=${PI_HOME:-}
 PI_SESSIONS_DIR=${PI_SESSIONS_DIR:-}
@@ -95,7 +95,7 @@ resolve_user() {
     if [ "$(id -u)" = 0 ]; then
       local h
       for h in /home/*; do
-        if [ -d "$h/.pi" ]; then
+        if [ -d "$h/.pig" ] || [ -d "$h/.pi" ]; then
           PI_USER=$(stat -c %U "$h")
           PI_HOME=$h
           break
@@ -111,7 +111,9 @@ resolve_user() {
     PI_HOME=$(getent passwd "$PI_USER" | cut -d: -f6)
   fi
   [ -n "$PI_HOME" ] || die "cannot determine PI_HOME for $PI_USER"
-  : "${PI_SESSIONS_DIR:=$PI_HOME/.pi/agent/sessions}"
+  # Both trees: PiG on the host writes ~/.pig, sandboxed PiG (pi-sandbox, Paseo)
+  # runs with PIG_USE_PI_DIRS=1 and writes ~/.pi.
+  : "${PI_SESSIONS_DIR:=$PI_HOME/.pig/agent/sessions:$PI_HOME/.pi/agent/sessions}"
   : "${OMNI_DB:=$PI_HOME/.omniroute/storage.sqlite}"
 }
 
@@ -191,11 +193,16 @@ PY
   ts_to_epoch "$ts"
 }
 
-# Newest write to any pi transcript. An open-but-AFK TUI writes nothing.
+# Newest write to any pig transcript. An open-but-AFK TUI writes nothing.
+# PI_SESSIONS_DIR is a colon-separated list; missing directories are skipped.
 pi_last_write() {
-  [ -d "$PI_SESSIONS_DIR" ] || return 1
-  local m
-  m=$(find "$PI_SESSIONS_DIR" -type f -name '*.jsonl' -printf '%T@\n' 2>/dev/null |
+  local m d dirs=() _all
+  IFS=: read -r -a _all <<<"$PI_SESSIONS_DIR"
+  for d in "${_all[@]}"; do
+    [ -n "$d" ] && [ -d "$d" ] && dirs+=("$d")
+  done
+  [ "${#dirs[@]}" -gt 0 ] || return 1
+  m=$(find "${dirs[@]}" -type f -name '*.jsonl' -printf '%T@\n' 2>/dev/null |
     sort -rn | head -1 | cut -d. -f1)
   [ -n "$m" ] || return 1
   printf '%s\n' "$m"
@@ -227,7 +234,7 @@ connections_on() {
   printf '%s\n' "$n"
 }
 
-# pi is running a tool (bash, ...) — never pull the plug mid-command.
+# pig is running a tool (bash, ...) — never pull the plug mid-command.
 pi_busy() {
   local p c
   for p in $(pi_pids); do

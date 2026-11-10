@@ -5,11 +5,11 @@
 # idle-shutdown check all keep working unchanged. The boundary is a bubblewrap
 # namespace: /home is not mounted at all, only $PI_SANDBOX_ROOT is.
 #
-#   pi-sandbox.sh [pi args...]        run pi sandboxed (Pi-Bolt when installed)
+#   pi-sandbox.sh [pi args...]        run pi sandboxed (PiG when installed)
 #   pi-sandbox.sh --shell             same boundary, plain bash (for debugging)
 #   pi-sandbox.sh --check             show what the sandbox can and cannot see
 #
-# Which pi: Pi-Bolt's AOT binary if present, else the upstream launcher at
+# Which pi: PiG (~/.local/bin/pig) if present, else the upstream launcher at
 # $AGENT/bin/pi. Override with PI_SANDBOX_PI_BIN=/path/to/pi (a bare name is
 # looked up on PATH, so PI_SANDBOX_PI_BIN=pi forces upstream).
 #
@@ -32,21 +32,22 @@ case "${PWD:-}" in
 esac
 
 # ── Which pi to run ─────────────────────────────────────────────────────────
-# Pi-Bolt ships as an AOT-compiled binary plus its assets under $HOME, which the
-# sandbox does not mount; so its install directory is bound read-only inside and
-# the binary is run from there. PI_SANDBOX_PI_BIN overrides the choice (and is
-# resolved through PATH, so PI_SANDBOX_PI_BIN=pi forces the upstream launcher).
+# PiG is one static binary in ~/.local/bin, which the sandbox does not mount, so
+# that single file is bound read-only at /opt/pi-runtime/pig. The upstream Pi
+# launcher lives under $AGENT/bin, which is mounted anyway. PI_SANDBOX_PI_BIN
+# overrides the choice (and is resolved through PATH, so PI_SANDBOX_PI_BIN=pi
+# forces the upstream launcher).
 PI_BIN=${PI_SANDBOX_PI_BIN:-}
 if [ -n "$PI_BIN" ]; then
   PI_BIN=$(command -v "$PI_BIN" 2>/dev/null) || :
 else
-  for c in "$HOME/.pi-bolt/pi-bolt-linux-x64/pi" "$AGENT/bin/pi"; do
+  for c in "${PIG_INSTALL_DIR:-$HOME/.local/bin}/pig" "$AGENT/bin/pi"; do
     [ -x "$c" ] && { PI_BIN=$c; break; }
   done
 fi
 [ -n "$PI_BIN" ] && [ -x "$PI_BIN" ] || {
-  printf '%s: cannot find a pi binary (tried Pi-Bolt and %s/bin/pi)\n' \
-    "${0##*/}" "$AGENT" >&2
+  printf '%s: cannot find a pi binary (tried %s/pig and %s/bin/pi)\n' \
+    "${0##*/}" "${PIG_INSTALL_DIR:-$HOME/.local/bin}" "$AGENT" >&2
   printf '  set PI_SANDBOX_PI_BIN=/path/to/pi to choose one\n' >&2
   exit 127
 }
@@ -56,6 +57,21 @@ PI_RUN=$PI_BIN
 case $PI_BIN in
   "$AGENT"/*) ;;                       # already bound read-only below
   *) PI_RUN=/opt/pi-runtime/${PI_BIN##*/}; PI_NEEDS_BIND=1 ;;
+esac
+
+# PiG keeps its own tree (~/.pig) by default. None of it is mounted here, so run
+# it in shared mode: PIG_USE_PI_DIRS=1 makes it read the ~/.pi/agent this script
+# already narrows (settings, models, per-workspace sessions) -- which is also
+# the directory Paseo and idle-shutdown look in. Shared mode still keeps PiG's
+# product state (extension cell cache, staged SDKs, docs) in PIG_HOME, and that
+# has to be writable, so it lives inside the tree and survives restarts.
+IS_PIG=
+PIG_HOME_DIR=
+case ${PI_BIN##*/} in
+  pig)
+    IS_PIG=1
+    PIG_HOME_DIR=${PI_SANDBOX_PIG_HOME:-$ROOT/.pig-home}
+    ;;
 esac
 
 # Node for pi. Prefer pi's own runtime; otherwise follow whatever `node` resolves
@@ -265,9 +281,25 @@ args=(
   --setenv PI_SANDBOX_PI_RESOLVED "$PI_RUN"
 )
 
-# Pi-Bolt's install directory (binary + assets/, theme/, skills/,
-# photon_rs_bg.wasm). Read-only: the binary is never the thing we write.
-[ -n "${PI_NEEDS_BIND:-}" ] && args+=(--ro-bind "$PI_ROOT" /opt/pi-runtime)
+# A pi that lives outside $AGENT. Read-only: the binary is never the thing we
+# write. PiG is a single file, so only that file is bound (its directory,
+# ~/.local/bin, holds unrelated host tools); any other binary gets its whole
+# directory, in case it needs assets next to it.
+if [ -n "$IS_PIG" ]; then
+  mkdir -p "$PIG_HOME_DIR" || {
+    printf '%s: cannot create PIG_HOME %s\n' "${0##*/}" "$PIG_HOME_DIR" >&2
+    exit 1
+  }
+  case $PIG_HOME_DIR in
+    "$ROOT" | "$ROOT"/*) ;;             # already inside the writable tree
+    *) args+=(--bind "$PIG_HOME_DIR" "$PIG_HOME_DIR") ;;
+  esac
+  args+=(--ro-bind "$PI_BIN" "$PI_RUN"
+         --setenv PIG_USE_PI_DIRS 1
+         --setenv PIG_HOME "$PIG_HOME_DIR")
+elif [ -n "${PI_NEEDS_BIND:-}" ]; then
+  args+=(--ro-bind "$PI_ROOT" /opt/pi-runtime)
+fi
 
 # Deliberately NOT mounted: auth.json (provider credentials), extensions/
 # (host code execution on the next unsandboxed run), models-store.json (cache).

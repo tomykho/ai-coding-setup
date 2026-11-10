@@ -59,11 +59,36 @@ install` (the token broker, user-owned, inert until an App is configured).
 
 ## Which `pi` runs inside
 
-Pi-Bolt's AOT binary (`~/.pi-bolt/*/pi`) when it is installed, otherwise the
-upstream launcher at `~/.pi/agent/bin/pi`. Because `$HOME` is a private tmpfs in
-the sandbox, Pi-Bolt's whole install directory is bound read-only at
-`/opt/pi-runtime`, so the binary finds its `assets/`, `theme/`, `skills/` and
-`photon_rs_bg.wasm`. Override the choice with `PI_SANDBOX_PI_BIN`:
+PiG (`~/.local/bin/pig`) when it is installed, otherwise the upstream launcher
+at `~/.pi/agent/bin/pi`. Both wrappers handle PiG the same way:
+
+- **The binary.** `~/.local/bin` is not mounted, and PiG is one static file, so
+  only that file is bound read-only: at `/opt/pi-runtime/pig` by
+  `pi-sandbox.sh`, and at its own host path by `paseo-sandbox.sh` (so an
+  unchanged `PI_COMMAND` resolves inside the namespace).
+- **Shared directories.** PiG's own tree (`~/.pig`) is not mounted and cannot be
+  created, so the scripts export `PIG_USE_PI_DIRS=1`. PiG then uses
+  `~/.pi/agent` -- settings, models and sessions -- which is the directory the
+  sandbox already narrows, and the one Paseo and `idle-shutdown` read.
+- **A writable `PIG_HOME`.** Shared mode still keeps PiG's product state there
+  (packed-extension cell cache, staged SDKs, docs), and loading a Node extension
+  (Paseo always passes one) needs it writable. The scripts export
+  `PIG_HOME=$PI_SANDBOX_ROOT/.pig-home` and create it; it persists across
+  restarts, which keeps the extension cache warm. Override with
+  `PI_SANDBOX_PIG_HOME`.
+
+Without `PIG_USE_PI_DIRS=1` PiG dies with
+`resolve project trust: ENOENT … mkdir '~/.pig/agent'`; without a writable
+`PIG_HOME` the Paseo extension fails with `create cell cache: mkdir ~/.pig:
+read-only file system`. Both are configuration, not bugs.
+
+**Models come from `~/.pi/agent/models.json` in the sandbox**, not from
+`~/.pig/agent/models.json`, which an unsandboxed `pig` on the host reads. The
+two files are independent: a model has to be listed in the former to be
+selectable from Paseo or `pi-sandbox`.
+
+Override the choice with `PI_SANDBOX_PI_BIN` (`pi-sandbox.sh`) or `PI_COMMAND`
+(`paseo-sandbox.sh`):
 
 ```bash
 PI_SANDBOX_PI_BIN=/path/to/pi  pi-sandbox      # an explicit binary
@@ -85,7 +110,7 @@ diffs. Wrapping only the agent leaves all of that with the whole home directory,
 which is exactly how `~/Todo` stays readable even though the agent's own `bash`
 cannot see it. `paseo-sandbox.sh` wraps the daemon instead, with `$HOME`
 replaced by the sandbox root, so it sees only `Projects` (which now contains
-Paseo's own state), Pi-Bolt's install dir, the node install dir, `.gitconfig`,
+Paseo's own state and PiG's `PIG_HOME`), the `pig` binary, the node install dir, `.gitconfig`,
 `~/.pi/agent/{models.json,install,bin,…}` and the session dirs of workspaces
 inside `Projects`. Every child it creates inherits that view.
 
@@ -100,10 +125,13 @@ bwrap: No permissions to create a new namespace, likely because the kernel
 
 Ubuntu 24.04 restricts unprivileged user-namespace creation through AppArmor, so
 an inner bwrap dies inside an outer bwrap. One layer only — and the daemon layer
-is strictly broader, so it belongs there. Paseo therefore spawns a plain `pi`:
+is strictly broader, so it belongs there. Paseo therefore spawns the agent
+binary directly, not `pi-sandbox`:
 
 ```ini
-Environment=PI_COMMAND=%h/.pi-bolt/pi-bolt-linux-x64/pi
+Environment=PI_COMMAND=%h/.local/bin/pig
+# or upstream Pi:
+# Environment=PI_COMMAND=%h/.pi/agent/bin/pi
 ```
 
 Consequence worth knowing: the agent shares the daemon's namespace, so it can
@@ -139,7 +167,7 @@ shorter path than `~/Projects/.paseo/worktrees`.
 [Service]
 Type=simple
 Environment=PATH=%h/.local/share/fnm/node-versions/v26.13.0/installation/bin:/usr/local/bin:/usr/bin:/bin
-Environment=PI_COMMAND=%h/.pi-bolt/pi-bolt-linux-x64/pi
+Environment=PI_COMMAND=%h/.local/bin/pig
 Environment=TMPDIR=%h/Projects/.paseo-tmp
 # Must match what paseo-sandbox.sh exports, or the host CLI looks for the daemon
 # in ~/.paseo and reports it as down.
@@ -232,15 +260,15 @@ Two consequences:
 
 Verified: `paseo run --provider pi` starts the daemon in its own mount namespace;
 the agent's `/proc/<pid>/root/home/tomykho` contains only
-`Projects .pi .local .pi-bolt .config .claude .codex .bun`; `Todo`,
+`Projects .pi .local .config .claude .codex .bun`; `Todo`,
 `Documents`, `.ssh` and `.omniroute` are absent; the agent reaches
-`omniroute/…` and goes idle with tokens billed. The `pi` it runs is
-`/home/tomykho/.pi-bolt/pi-bolt-linux-x64/pi`, cwd = the workspace.
+`omniroute/…` and goes idle with tokens billed. The agent it runs is
+`/home/tomykho/.local/bin/pig`, cwd = the workspace.
 
 PiChamber cannot be used this way at any setting: it imports
 `@earendil-works/pi-coding-agent` as a library and runs the session daemon
 in-process, so there is no `pi` process to wrap — and no alias or symlink can
-change that, because Pi-Bolt ships no importable `dist/`.
+change that, because PiG is a Go binary with no importable `dist/`.
 
 ## Verify
 

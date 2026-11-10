@@ -148,7 +148,7 @@ idle() { # idle [--apply] [IDLE_MIN] [OPEN_MIN]: power off after IDLE_MIN/OPEN_M
   user=${PI_USER:-${SUDO_USER:-$USER}}
   home=$(getent passwd "$user" | cut -d: -f6)
 
-  say "idle shutdown for user $user (home $home): $idle_min min idle, $open_min min if pi or an SSH shell is open"
+  say "idle shutdown for user $user (home $home): $idle_min min idle, $open_min min if pig or an SSH shell is open"
   say "  /etc/idle-check.conf                        (DRY_RUN=0: it will power off when the rule is met)"
   say "  /usr/local/bin/idle-check.sh, idle-ctl"
   say "  /etc/systemd/system/idle-check.{service,timer}   every 5 min"

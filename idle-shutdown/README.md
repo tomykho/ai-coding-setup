@@ -5,28 +5,28 @@ Power the machine off when nothing AI-ish is happening, and never while somethin
 ## Rule
 
 ```
-activity = newest( allowlisted OmniRoute request, pi transcript write, boot )
-session  = pi process running  |  open SSH connection
+activity = newest( allowlisted OmniRoute request, pig transcript write, boot )
+session  = pig process running  |  open SSH connection
 
 power off ⇔ activity older than (session ? OPEN_MIN : IDLE_MIN)  and no blocker
 ```
 
 | Situation | Tier | Result |
 |---|---|---|
-| No `pi`, no SSH | `IDLE_MIN` = 60 min | off |
-| `pi` open but AFK (forgot to close it) | `OPEN_MIN` = 120 min | off; resume with `pi --continue` |
+| No `pig`, no SSH | `IDLE_MIN` = 60 min | off |
+| `pig` open but AFK (forgot to close it) | `OPEN_MIN` = 120 min | off; resume with `pig --continue` |
 | SSH shell left open | `OPEN_MIN` = 120 min | off — buys time, does not reset the clock |
 | Any allowlisted request from any machine, completed | — | clock resets |
-| `pi` mid-tool, `dpkg`/`apt` running, or hold file present | — | blocked |
+| `pig` mid-tool, `dpkg`/`apt` running, or hold file present | — | blocked |
 
 ## Signals
 
 | Signal | Read from | Why |
 |---|---|---|
 | Activity | newest `call_logs` row on an allowlisted path in `~/.omniroute/storage.sqlite` | every `/v1/*` request counts, from any machine. Rows are written at completion |
-| Activity | newest mtime of `~/.pi/agent/sessions/**/*.jsonl` | one line per message/tool call; an AFK-but-open TUI writes nothing |
+| Activity | newest mtime of `~/.pig/agent/sessions/**/*.jsonl` and `~/.pi/agent/sessions/**/*.jsonl` (sandboxed PiG writes the latter) | one line per message/tool call; an AFK-but-open TUI writes nothing |
 | Activity | `/proc/stat` `btime` | a freshly booted box is never idle |
-| Session | `pgrep -x pi` | the agent is still open |
+| Session | `pgrep -x pig` | the agent is still open |
 | Session | `ss` established on `SSH_PORT`, non-loopback peer | a shell you forgot to close |
 
 The DB is opened `mode=ro`, never `immutable=1`: the live WAL holds the newest rows.
@@ -63,9 +63,9 @@ request was found at all.
 ## Known gaps
 
 `call_logs` only gets a row when a request finishes, so a *remote* request that starts in
-the last minute before the deadline can still be cut off. Requests from `pi` on this box
-are protected, because the tool call is a child process of `pi` and blocks the shutdown.
-A cut-off remote request costs one retry; transcripts are on disk and `pi --continue`
+the last minute before the deadline can still be cut off. Requests from `pig` on this box
+are protected, because the tool call is a child process of `pig` and blocks the shutdown.
+A cut-off remote request costs one retry; transcripts are on disk and `pig --continue`
 resumes.
 
 A request on a path outside `OMNI_ALLOW_PATHS` (`/v1/embeddings`, a future `/v2/…`, a
@@ -153,7 +153,7 @@ The timer still fires every 5 min, so a `test 5 10` trial acts on the next tick:
 ./test_idle_check.sh
 ```
 
-Fake DB, fake transcripts, fake `pi` process, a real socket for the client case,
+Fake DB, fake transcripts, fake `pig` process, a real socket for the client case,
 `DRY_RUN=1`, no root, no systemd, no poweroff.
 
 ## Wake it up again

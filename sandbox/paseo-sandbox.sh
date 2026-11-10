@@ -90,6 +90,36 @@ esac
 # fnm install dir has to stay reachable or the shebang cannot resolve.
 NODE_ROOT=$(cd "$(dirname "$(command -v node)")/.." && pwd)
 
+# --- agent runtime ----------------------------------------------------------
+# The daemon spawns whatever PI_COMMAND names. PiG (pig) is a single static
+# binary that the host keeps in ~/.local/bin, which this namespace does not
+# mount. Bind it at the same path so an unchanged PI_COMMAND resolves, and
+# switch PiG to shared mode: it then reads the ~/.pi/agent the daemon already
+# mounts instead of ~/.pig, which is not bound (and, with $HOME read-only,
+# cannot be created).
+agent_binds=()
+PI_AGENT_COMMAND=${PI_COMMAND:-pi}
+case "${PI_AGENT_COMMAND##*/}" in
+  pig)
+    # Shared mode for the agent dir; product state (packed-extension cell cache,
+    # docs, Piglets) still goes to PIG_HOME, which must be writable and in-tree.
+    export PIG_USE_PI_DIRS=1
+    export PIG_HOME=${PI_SANDBOX_PIG_HOME:-$PROJECTS/.pig-home}
+    mkdir -p "$PIG_HOME"
+    case "$PIG_HOME" in
+      "$PROJECTS" | "$PROJECTS"/*) ;;   # already inside the writable tree
+      *) agent_binds+=(--bind "$PIG_HOME" "$PIG_HOME") ;;
+    esac
+    pig_bin=$(command -v "$PI_AGENT_COMMAND" 2>/dev/null || true)
+    if [ -n "$pig_bin" ]; then
+      pig_bin=$(readlink -f "$pig_bin")
+      agent_binds+=(--ro-bind "$pig_bin" "$pig_bin")
+    else
+      printf '%s: warning: PI_COMMAND is pig but no pig binary is on PATH\n' "${0##*/}" >&2
+    fi
+    ;;
+esac
+
 # --- GitHub credential -------------------------------------------------------
 # PI_SANDBOX_GH picks it; neither mode mounts ~/.ssh (see the GIT_CONFIG_*
 # exports below for why the sandbox pushes over https and never over ssh).
@@ -223,9 +253,9 @@ args=(
   --ro-bind-try "$AGENT/install" "$AGENT/install"
   --ro-bind-try "$AGENT/bin" "$AGENT/bin"
 
-  # Pi-Bolt's install dir: the daemon needs it to resolve PI_COMMAND, and the
-  # binary needs its assets/theme/skills next to it at runtime.
-  --ro-bind-try "$HOME_DIR/.pi-bolt" "$HOME_DIR/.pi-bolt"
+  # PiG's binary (and an out-of-tree PIG_HOME), when PI_COMMAND selects it (see
+  # "agent runtime" above).
+  ${agent_binds[@]+"${agent_binds[@]}"}
 
   # git identity, if present (never ~/.ssh: keys are not needed here and
   # mounting them would hand the daemon everything the sandbox hides from pi).
