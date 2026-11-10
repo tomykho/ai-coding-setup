@@ -1,0 +1,28 @@
+[Unit]
+# Mints short-lived, repo-scoped GitHub tokens for the sandbox (see sandbox/README.md).
+# Holds the GitHub App private keys; the sandbox only ever sees the socket.
+Description=gh-mint: GitHub App token broker for the pi sandbox
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.config/gh-mint/gh-mint.sh serve
+Environment=GH_MINT_SOCK=%t/gh-mint/gh-mint.sock
+# %t is /run/user/<uid>; the directory (and its 0700 mode) is systemd's.
+RuntimeDirectory=gh-mint
+RuntimeDirectoryMode=0700
+Restart=on-failure
+RestartSec=2
+
+# The broker only ever reads keys and writes one socket.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+RestrictSUIDSGID=yes
+ReadWritePaths=%t/gh-mint
+
+[Install]
+WantedBy=default.target

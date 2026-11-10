@@ -1,0 +1,40 @@
+#!/bin/sh
+# gh shim, mounted read-only in the sandbox as /opt/gh-mint/bin/gh.
+#
+# Mints a fresh installation token for the repository this call is about, then
+# execs the real gh with it in GH_TOKEN. A long session therefore never holds a
+# token that is more than a few seconds old, and `gh` keeps working past the
+# 60-minute expiry of any single token.
+#
+# Owner selection: the repository's owner when inside a git checkout, else
+# $GH_MINT_OWNER (set by the sandbox launcher). A repo whose owner has no App
+# configured fails with the broker's error instead of silently using the wrong
+# account's token.
+set -eu
+
+SOCK=${GH_MINT_SOCK:-/run/gh-mint.sock}
+REAL=${GH_MINT_REAL_GH:-/usr/bin/gh}
+
+repo_owner() {
+  url=$(git remote get-url origin 2>/dev/null) || return 0
+  case $url in
+    *://*) url=${url#*://}; url=${url#*/} ;;   # https://host/owner/repo
+    *@*:*) url=${url#*:} ;;                    # git@host:owner/repo
+    /* | "") return 0 ;;                       # local path: no owner
+  esac
+  printf '%s' "${url%%/*}"
+}
+
+owner=$(repo_owner)
+[ -n "$owner" ] || owner=${GH_MINT_OWNER:-}
+
+if ! token=$(curl -sfN --max-time 20 --unix-socket "$SOCK" \
+  "http://localhost/token${owner:+?owner=$owner}" 2>/dev/null); then
+  printf 'gh: cannot mint a GitHub token from %s\n' "$SOCK" >&2
+  printf '    start it on the host:  systemctl --user start gh-mint\n' >&2
+  printf '    or use the host gh instead: PI_SANDBOX_GH=legacy pi-sandbox\n' >&2
+  exit 1
+fi
+[ -n "$token" ] || { printf 'gh: broker returned an empty token\n' >&2; exit 1; }
+
+exec env GH_TOKEN="$token" "$REAL" "$@"

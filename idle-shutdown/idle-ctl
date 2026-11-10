@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# idle-ctl — hold, release, test or inspect the idle-shutdown check.
+#
+#   idle-ctl status    one verdict line, exit 10 if it would power off
+#   idle-ctl hold      stop powering off (maintenance, long build, ...)
+#   idle-ctl release   allow powering off again
+#   idle-ctl test      short tiers for a trial run, expires on its own (see below)
+#   idle-ctl normal    end a test run now
+#   idle-ctl log       last decisions from the journal
+#   idle-ctl now       run a real check now (respects DRY_RUN)
+#
+# Test mode: idle-ctl test [IDLE_MIN] [OPEN_MIN] [MINUTES_UNTIL_REVERT]
+#   defaults 5, 10, 120. Lives in /run, so a reboot ends it too.
+set -uo pipefail
+
+CONF=${IDLE_CHECK_CONF:-/etc/idle-check.conf}
+# shellcheck disable=SC1090
+[ -r "$CONF" ] && . "$CONF"
+HOLD_FILE=${HOLD_FILE:-/run/idle-shutdown-hold}
+TEST_CONF=${TEST_CONF:-/run/idle-shutdown-test}
+SELF=${0##*/}
+sudo_() { [ "$(id -u)" = 0 ] && "$@" || sudo "$@"; }
+
+test_left() { # minutes left in a running trial, or nothing
+  [ -e "$TEST_CONF" ] || return 1
+  local until_epoch left
+  until_epoch=$(sed -n 's/^UNTIL=//p' "$TEST_CONF" 2>/dev/null | tail -1)
+  [ -n "$until_epoch" ] || return 1
+  left=$(((until_epoch - $(date +%s)) / 60))
+  [ "$left" -gt 0 ] && printf '%s' "$left"
+}
+
+case ${1:-status} in
+  status)
+    /usr/local/bin/idle-check.sh --status
+    rc=$?
+    if [ "$rc" = 10 ]; then
+      echo "-> would power off (DRY_RUN=${DRY_RUN:-?})"
+    else
+      echo "-> keep running"
+    fi
+    [ -e "$HOLD_FILE" ] && echo "-> hold file present: $HOLD_FILE"
+    if left=$(test_left); then
+      echo "-> test mode: back to ${IDLE_MIN_DEFAULT:-60}/${OPEN_MIN_DEFAULT:-120}m in ${left}m"
+    fi
+    exit "$rc"
+    ;;
+  hold)
+    sudo_ touch "$HOLD_FILE" && echo "held: $HOLD_FILE (remove with: $SELF release)"
+    ;;
+  release)
+    sudo_ rm -f "$HOLD_FILE" && echo "released"
+    ;;
+  test)
+    idle_min=${2:-5}
+    open_min=${3:-10}
+    for v in "$idle_min" "$open_min"; do
+      case $v in '' | *[!0-9]*) echo "$SELF: need whole minutes, got '$v'" >&2; exit 2 ;; esac
+    done
+    expires=$(( $(date +%s) + ${4:-120} * 60 ))
+    grace=${5:-15}
+    printf 'IDLE_MIN=%s\nOPEN_MIN=%s\nGRACE_SEC=%s\nUNTIL=%s\n' \
+      "$idle_min" "$open_min" "$grace" "$expires" |
+      sudo_ tee "$TEST_CONF" >/dev/null || exit 1
+    sudo_ chmod 0644 "$TEST_CONF"
+    echo "test mode on: off after ${idle_min}m idle, ${open_min}m with a session open,"
+    echo "  warning ${grace}s before; ends in ${4:-120}m or at the next reboot"
+    echo "  watch it:   journalctl -u idle-check.service -f"
+    echo "  force it:   sudo $SELF now      (real check, powers off after the warning)"
+    echo "  stop it:    sudo $SELF normal"
+    ;;
+  normal)
+    sudo_ rm -f "$TEST_CONF" && echo "test mode off: back to IDLE_MIN=${IDLE_MIN:-?} OPEN_MIN=${OPEN_MIN:-?}"
+    ;;
+  log)
+    journalctl -u idle-check.service -n "${2:-30}" --no-pager
+    ;;
+  now)
+    sudo_ /usr/local/bin/idle-check.sh
+    ;;
+  *)
+    echo "usage: $SELF [status|hold|release|test [idle_min] [open_min] [minutes]|normal|log|now]" >&2
+    exit 2
+    ;;
+esac

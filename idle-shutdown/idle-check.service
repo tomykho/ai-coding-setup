@@ -1,0 +1,12 @@
+[Unit]
+Description=Idle check: power off when no AI client is active
+Documentation=file:/etc/idle-check.conf
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/idle-check.sh
+# The script may sleep GRACE_SEC before powering off.
+TimeoutStartSec=300
+Nice=10
+IOSchedulingClass=idle

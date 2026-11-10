@@ -6,8 +6,18 @@ Clone it on a new machine, run one script, restart Claude Code.
 ```bash
 git clone git@github.com:tomykho/ai-coding-setup.git ~/Development/ai-coding-setup
 cd ~/Development/ai-coding-setup
-./install.sh            # or: tools | claude | copilot | omniroute
+./install.sh            # asks which parts to install
+./install.sh claude     # or: tools | copilot | omniroute | idle | sandbox | all
 ```
+
+With no target, the installer lists the parts (tools, `claude`, `copilot`, `omniroute`,
+`idle`, `all`) and installs only what you pick — nothing is written before you choose.
+Non-interactive runs must name their targets; `all` is never implied.
+
+Auto power-off when no AI client is active is opt-in and **not** part of `all`, because it
+changes machine behaviour: `./install.sh idle` prints the plan, `./install.sh idle --apply`
+installs it. Tier args: `./install.sh idle --apply [IDLE_MIN] [OPEN_MIN]` (default 60 and 120).
+See [`idle-shutdown/`](idle-shutdown/).
 
 Needs `python3` (runs the gate hook, standard library only) and `cargo` (Rust, required) for the CLI tools. The installer tells you if either is missing.
 
@@ -19,14 +29,36 @@ Needs `python3` (runs the gate hook, standard library only) and `cargo` (Rust, r
 
 | Part | Where it goes | How |
 |---|---|---|
-| CLI tools (`rg`, `fd`, `ast-grep`, `jq`, `yq`, `jc`, `difft`, `shellcheck`, `hyperfine`, `tokei`, `ctags`, `gh`, `bat`) | system / `~/.cargo/bin` | cargo for the Rust tools; dnf for `jq`, `yq`, `jc`, `shellcheck`, `ctags`, `gh` |
+| CLI tools (`rg`, `fd`, `ast-grep`, `jq`, `yq`, `jc`, `difft`, `shellcheck`, `hyperfine`, `tokei`, `ctags`, `gh`) | system / `~/.cargo/bin` | cargo for the Rust tools; dnf for `jq`, `yq`, `jc`, `shellcheck`, `ctags`, `gh` |
 | `omniroute/cli-tools-prompt.md`: tells every client (Claude Code, Copilot, ...) which CLI tool to use for what | OmniRoute global system prompt (suffix), `~/.omniroute/storage.sqlite` | `omniroute/set-system-prompt.py`; restart OmniRoute to apply |
 | `claude/hooks/cli-tools-gate.py`: blocks risky or token-heavy commands | `~/.claude/hooks/` | symlink |
 | `claude/settings.json`: hook registration, output cap, env | `~/.claude/settings.json` | merged with jq (your other keys and secrets are kept) |
 | `copilot/vscode-chatLanguageModels.json`: VS Code Copilot custom endpoint (OmniRoute models) | `~/.config/Code/User/chatLanguageModels.json` | written from template; `${OMNIROUTE_API_KEY}` replaced with the key from `~/.omniroute/.env`, never stored here |
+| `idle-shutdown/`: power off after 60 min with no client, 120 min if one is still connected | `/usr/local/bin/idle-check.sh`, `/etc/idle-check.conf`, `idle-check.timer` | `./install.sh idle --apply [IDLE_MIN] [OPEN_MIN]` (opt-in, live; tiers default to 60/120) |
 | `omniroute/claude-env.json`: points Claude Code at a local OmniRoute | `~/.claude/settings.json` | merged; API key asked for, never stored here |
+| `sandbox/`: `pi-sandbox` runs a remote agent session in a bubblewrap namespace — same UID, but it sees only `~/Projects`, not the rest of `/home` | `/usr/local/bin/pi-sandbox` | `./install.sh sandbox --apply` (needs `bubblewrap`); see [`sandbox/`](sandbox/README.md) |
 
 Symlinked files mean edits in `~/.claude` are edits in this repo: `git diff`, commit, push. The Copilot file is written from a template, so edit `copilot/` here and re-run `./install.sh copilot`.
+
+## Sandbox GitHub credentials (`sandbox/gh-mint/`) — built and parked
+
+`gh-mint` exists to stop the sandbox holding your whole GitHub account: a host-side
+broker (user systemd unit, unix socket) hands out **60-minute GitHub App
+installation tokens** scoped to one installation's repos, or — for an owner where
+no App can be installed, e.g. someone else's personal account where you are only a
+collaborator — a fine-grained PAT read from a host-only file. The sandbox then sees
+a socket, never key material, and `~/.config/gh` is not mounted at all.
+
+Status: built, installed, 36 offline tests green, service running — but **no owner
+is configured, so the sandbox is still in `legacy` mode** using the host's `gh`
+token, exactly as before. Nothing is half-migrated and nothing needs undoing; it
+switches over the moment one owner is configured.
+
+**Resume here: [`sandbox/gh-mint/TODO.md`](sandbox/gh-mint/TODO.md).** The only
+missing input for this account is the App ID; that file also holds the deferred
+decisions (collaborator-only owner, public vs private App), the repo-ruleset gap,
+and the list of things deliberately not done. Design and trade-offs:
+[`sandbox/README.md`](sandbox/README.md), "GitHub access".
 
 ## OmniRoute notes
 
@@ -124,6 +156,35 @@ cut -f2 ~/.claude/logs/cli-tools-gate.log | sort | uniq -c | sort -rn
 ```
 
 `settings.json` also sets `BASH_MAX_OUTPUT_LENGTH=15000`, capping any one command at ~3.7k tokens.
+
+## Auto power-off when idle (`idle-shutdown/`)
+
+The box is a local gateway, not a server: it should not stay up because a terminal was
+left open. `idle-check.sh` powers it off after **60 min** with no AI activity, or **120 min**
+if a `pi` TUI or an SSH shell is still open.
+
+It does not use the OS's idle notion. Activity is the newest of the OmniRoute request log
+(`call_logs.timestamp`, so requests from your laptop count), the `pi` transcript mtime (an
+AFK-but-open TUI writes nothing), and boot time. A session is a `pi` process or an open
+SSH connection — a session buys the 2 h tier but does not reset the clock. Blockers: a
+`pi` tool still running, `dpkg`/`apt` holding the lock, or `/run/idle-shutdown-hold`.
+
+```bash
+./install.sh idle --apply     # live: DRY_RUN=0, powers off when the rule is met
+./install.sh idle --apply 10 20   # shorter tiers: 10 min idle, 20 min with a session open
+sudo journalctl -u idle-check -f
+idle-ctl status | hold | release | now | log
+sudo sed -i 's/^DRY_RUN=0/DRY_RUN=1/' /etc/idle-check.conf   # rehearse: log only
+```
+
+Every cycle logs one auditable line:
+
+```
+verdict=keep idle=37m tier=120m session=pi(2054),ssh(2) last=omni omni=0m pi=37m boot=49m blockers=pi-busy
+```
+
+`./idle-shutdown/test_idle_check.sh` runs the decision table with fake signals (no root,
+no poweroff). Wake-on-LAN works on the NIC, so the OpenWrt router can bring it back.
 
 ## Not in this repo
 
